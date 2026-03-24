@@ -40,7 +40,7 @@ async function main() {
 
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@demo.com" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       tenantId: tenant.id,
       email: "admin@demo.com",
@@ -58,7 +58,7 @@ async function main() {
   // Demo Veteriner
   const vetUser = await prisma.user.upsert({
     where: { email: "vet@demo.com" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       tenantId: tenant.id,
       email: "vet@demo.com",
