@@ -59,7 +59,7 @@ export async function registerPetWithOwner(
 
   try {
     // Transaction: önce sahip, sonra hayvan
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: any) => {
       const owner = await tx.petOwner.create({
         data: {
           tenantId: session.user.tenantId,
