@@ -325,6 +325,7 @@ export default async function PatientDetailPage({
               {pet.vaccines.map((vac) => {
                 const nextDue = vac.nextDueDate ? new Date(vac.nextDueDate) : null;
                 const isOverdue = nextDue && nextDue < new Date();
+                // eslint-disable-next-line react-hooks/purity
                 const isDueSoon = nextDue && !isOverdue && nextDue.getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
 
                 return (

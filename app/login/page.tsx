@@ -88,7 +88,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-blue-200/60 text-sm">
-          © 2025 DigiVet VMS · Türkiye'nin veteriner klinik yönetim platformu
+          © 2025 DigiVet VMS · Türkiye&apos;nin veteriner klinik yönetim platformu
         </p>
       </div>
 
