@@ -9,6 +9,7 @@ import {
   PawPrint,
 } from "lucide-react";
 import ExaminationSOAPForm from "./ExaminationSOAPForm";
+import ExamFileUploader from "@/components/files/ExamFileUploader";
 
 const speciesIcon: Record<string, string> = {
   DOG: "🐕", CAT: "🐱", BIRD: "🐦", RABBIT: "🐇",
@@ -99,18 +100,35 @@ export default async function ExaminationDetailPage({
           </div>
         </div>
 
-        {/* Status badge */}
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium ${
-          isSigned
-            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-        }`}>
-          {isSigned ? "✅ İmzalandı" : "📝 Taslak"}
-          {isSigned && examination.signedAt && (
-            <span className="text-xs opacity-60">
-              · {new Date(examination.signedAt).toLocaleString("tr-TR")}
-            </span>
+        <div className="flex items-center gap-3">
+          {isSigned && (
+            <form action={async () => {
+              "use server";
+              const { createInvoiceFromExamination } = await import("@/app/actions/invoices");
+              await createInvoiceFromExamination(examination.id);
+            }}>
+              <button 
+                type="submit" 
+                className="px-4 py-2 bg-blue-600/90 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-blue-500/20"
+              >
+                📝 Faturaya Dönüştür
+              </button>
+            </form>
           )}
+
+          {/* Status badge */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium ${
+            isSigned
+              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+          }`}>
+            {isSigned ? "✅ İmzalandı" : "📝 Taslak"}
+            {isSigned && examination.signedAt && (
+              <span className="text-xs opacity-60">
+                · {new Date(examination.signedAt).toLocaleString("tr-TR")}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -264,6 +282,42 @@ export default async function ExaminationDetailPage({
               </div>
             </div>
           )}
+          {/* Dosyalar & Yükleme */}
+          <div className="bg-slate-900/60 border border-slate-800/60 rounded-xl p-5">
+            <h3 className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-sky-400" />
+              Tahlil & Röntgenler ({examination.files.length})
+            </h3>
+            
+            {examination.files.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {examination.files.map((file) => (
+                  <a 
+                    key={file.id} 
+                    href={file.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 bg-slate-800/40 border border-slate-800/60 rounded-lg hover:bg-slate-800/80 hover:border-slate-700 transition-all group"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-medium text-slate-200 truncate">{file.name}</div>
+                        <div className="text-[10px] text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+            
+            {!isSigned && <ExamFileUploader examinationId={examination.id} />}
+            {isSigned && examination.files.length === 0 && (
+              <div className="text-xs text-slate-500 italic">Dosya yüklenmemiş</div>
+            )}
+          </div>
         </div>
 
         {/* Sağ Kolon — SOAP Düzenleme Formu */}
