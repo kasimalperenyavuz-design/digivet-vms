@@ -1,13 +1,514 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ──────────────────────────────────────────────────────────
+// MULTI-TENANT
+// ──────────────────────────────────────────────────────────
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  subdomain   String   @unique
+  logoUrl     String?
+  phone       String?
+  email       String?
+  address     Json?
+  taxNo       String?
+  vetbisId    String?
+  plan        Plan     @default(STARTER)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         User[]
+  petOwners     PetOwner[]
+  pets          Pet[]
+  appointments  Appointment[]
+  examinations  Examination[]
+  prescriptions Prescription[]
+  vaccines      Vaccine[]
+  invoices      Invoice[]
+  inventory     InventoryItem[]
+  notifications NotificationLog[]
+
+  @@map("tenants")
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// ──────────────────────────────────────────────────────────
+// KULLANICI & AUTH
+// ──────────────────────────────────────────────────────────
+
+model User {
+  id          String    @id @default(cuid())
+  tenantId    String
+  email       String    @unique
+  phone       String?
+  password    String
+  role        Role      @default(RECEPTIONIST)
+  firstName   String
+  lastName    String
+  title       String?
+  diplomaNo   String?
+  avatarUrl   String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLogin   DateTime?
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments  Appointment[]
+  examinations  Examination[]
+  prescriptions Prescription[]
+  vaccines      Vaccine[]
+
+  @@map("users")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  VET
+  ASSISTANT
+  RECEPTIONIST
+}
+
+// ──────────────────────────────────────────────────────────
+// HAYVAN SAHİBİ
+// ──────────────────────────────────────────────────────────
+
+model PetOwner {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tcNo         String?   // AES-256 şifreli
+  firstName    String
+  lastName     String
+  phone        String
+  email        String?
+  address      Json?
+  notes        String?
+  kvkkConsent  Boolean   @default(false)
+  kvkkDate     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pets      Pet[]
+  invoices  Invoice[]
+
+  @@map("pet_owners")
+}
+
+// ──────────────────────────────────────────────────────────
+// HAYVAN (HASTA)
+// ──────────────────────────────────────────────────────────
+
+model Pet {
+  id          String    @id @default(cuid())
+  tenantId    String
+  ownerId     String
+  name        String
+  species     Species
+  breed       String?
+  gender      Gender    @default(UNKNOWN)
+  birthDate   DateTime?
+  color       String?
+  microchip   String?
+  passportNo  String?
+  photoUrl    String?
+  isNeutered  Boolean   @default(false)
+  isDeceased  Boolean   @default(false)
+  deathDate   DateTime?
+  notes       String?
+  vetbisId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner         PetOwner        @relation(fields: [ownerId], references: [id])
+  appointments  Appointment[]
+  examinations  Examination[]
+  prescriptions Prescription[]
+  vaccines      Vaccine[]
+  invoices      Invoice[]
+
+  @@map("pets")
+}
+
+enum Species {
+  DOG
+  CAT
+  BIRD
+  RABBIT
+  REPTILE
+  RODENT
+  OTHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+// ──────────────────────────────────────────────────────────
+// RANDEVU
+// ──────────────────────────────────────────────────────────
+
+model Appointment {
+  id             String            @id @default(cuid())
+  tenantId       String
+  petId          String
+  vetId          String
+  type           AppointmentType   @default(CHECKUP)
+  status         AppointmentStatus @default(SCHEDULED)
+  startTime      DateTime
+  endTime        DateTime
+  duration       Int               // dakika
+  reason         String?
+  notes          String?
+  source         AppointmentSource @default(MANUAL)
+  reminderSent   Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pet          Pet           @relation(fields: [petId], references: [id])
+  vet          User          @relation(fields: [vetId], references: [id])
+  examination  Examination?
+
+  @@map("appointments")
+}
+
+enum AppointmentType {
+  CHECKUP
+  VACCINATION
+  SURGERY
+  GROOMING
+  HOTEL
+  LAB
+  EMERGENCY
+  FOLLOWUP
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  MANUAL
+  ONLINE
+  PHONE
+}
+
+// ──────────────────────────────────────────────────────────
+// MUAYENE (SOAP)
+// ──────────────────────────────────────────────────────────
+
+model Examination {
+  id            String          @id @default(cuid())
+  tenantId      String
+  appointmentId String?         @unique
+  petId         String
+  vetId         String
+  examDate      DateTime        @default(now())
+  // Vital Bulgular
+  weight        Float?
+  temperature   Float?
+  heartRate     Int?
+  respRate      Int?
+  spO2          Float?
+  // SOAP
+  subjective    String?         @db.Text
+  objective     String?         @db.Text
+  assessment    String?         @db.Text
+  plan          String?         @db.Text
+  diagnosisCodes String[]
+  status        ExamStatus      @default(DRAFT)
+  signedAt      DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointment Appointment?    @relation(fields: [appointmentId], references: [id])
+  pet         Pet             @relation(fields: [petId], references: [id])
+  vet         User            @relation(fields: [vetId], references: [id])
+  prescription Prescription[]
+  files       ExamFile[]
+
+  @@map("examinations")
+}
+
+enum ExamStatus {
+  DRAFT
+  SIGNED
+}
+
+model ExamFile {
+  id            String   @id @default(cuid())
+  examinationId String
+  name          String
+  url           String
+  type          String   // image/pdf/dicom
+  size          Int
+  createdAt     DateTime @default(now())
+
+  examination Examination @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+
+  @@map("exam_files")
+}
+
+// ──────────────────────────────────────────────────────────
+// REÇETE
+// ──────────────────────────────────────────────────────────
+
+model Prescription {
+  id            String             @id @default(cuid())
+  tenantId      String
+  examinationId String
+  petId         String
+  vetId         String
+  issueDate     DateTime           @default(now())
+  atsNo         String?
+  notes         String?
+  status        PrescriptionStatus @default(DRAFT)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  examination Examination          @relation(fields: [examinationId], references: [id])
+  pet         Pet                  @relation(fields: [petId], references: [id])
+  vet         User                 @relation(fields: [vetId], references: [id])
+  items       PrescriptionItem[]
+
+  @@map("prescriptions")
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  drugName       String
+  activeIngredient String?
+  dosage         String
+  frequency      String
+  duration       Int
+  quantity       Float
+  unit           String
+  instructions   String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@map("prescription_items")
+}
+
+// ──────────────────────────────────────────────────────────
+// AŞI
+// ──────────────────────────────────────────────────────────
+
+model Vaccine {
+  id              String   @id @default(cuid())
+  tenantId        String
+  petId           String
+  vetId           String
+  vaccineName     String
+  batchNo         String?
+  expiryDate      DateTime?
+  vaccinationDate DateTime
+  nextDueDate     DateTime?
+  itsReported     Boolean  @default(false)
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pet    Pet    @relation(fields: [petId], references: [id])
+  vet    User   @relation(fields: [vetId], references: [id])
+
+  @@map("vaccines")
+}
+
+// ──────────────────────────────────────────────────────────
+// STOK & ENVANTER
+// ──────────────────────────────────────────────────────────
+
+model InventoryItem {
+  id            String       @id @default(cuid())
+  tenantId      String
+  name          String
+  category      ItemCategory
+  barcode       String?
+  quantity      Float        @default(0)
+  unit          String
+  minQuantity   Float        @default(0)
+  purchasePrice Float?
+  salePrice     Float?
+  expiryDate    DateTime?
+  lotNo         String?
+  location      String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  movements InventoryMovement[]
+
+  @@map("inventory_items")
+}
+
+enum ItemCategory {
+  DRUG
+  SUPPLY
+  EQUIPMENT
+  FOOD
+  OTHER
+}
+
+model InventoryMovement {
+  id          String       @id @default(cuid())
+  tenantId    String
+  itemId      String
+  type        MovementType
+  quantity    Float
+  reason      String?
+  referenceId String?
+  createdAt   DateTime     @default(now())
+
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_movements")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  EXPIRED
+}
+
+// ──────────────────────────────────────────────────────────
+// FATURA
+// ──────────────────────────────────────────────────────────
+
+model Invoice {
+  id            String        @id @default(cuid())
+  tenantId      String
+  petId         String
+  ownerId       String
+  invoiceNo     String
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime?
+  status        InvoiceStatus @default(DRAFT)
+  subtotal      Float         @default(0)
+  discount      Float         @default(0)
+  tax           Float         @default(0)
+  total         Float         @default(0)
+  paidAmount    Float         @default(0)
+  paymentMethod PaymentMethod?
+  eInvoiceNo    String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pet    Pet           @relation(fields: [petId], references: [id])
+  owner  PetOwner      @relation(fields: [ownerId], references: [id])
+  items  InvoiceItem[]
+
+  @@unique([tenantId, invoiceNo])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  INSTALLMENT
+}
+
+model InvoiceItem {
+  id          String      @id @default(cuid())
+  invoiceId   String
+  type        ItemType
+  description String
+  quantity    Float
+  unitPrice   Float
+  discount    Float       @default(0)
+  taxRate     Float       @default(20)
+  total       Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+enum ItemType {
+  SERVICE
+  DRUG
+  LAB
+  OTHER
+}
+
+// ──────────────────────────────────────────────────────────
+// BİLDİRİM LOGU
+// ──────────────────────────────────────────────────────────
+
+model NotificationLog {
+  id          String           @id @default(cuid())
+  tenantId    String
+  type        NotifType
+  recipient   String
+  template    String
+  content     String           @db.Text
+  status      NotifStatus      @default(PENDING)
+  sentAt      DateTime?
+  error       String?
+  referenceId String?
+  createdAt   DateTime         @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("notification_logs")
+}
+
+enum NotifType {
+  SMS
+  EMAIL
+  WHATSAPP
+  PUSH
+}
+
+enum NotifStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
 }
